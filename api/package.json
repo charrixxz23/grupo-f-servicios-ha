@@ -1,0 +1,1 @@
+{"name":"semestral-ha-api","version":"1.0.0","private":true,"type":"module","scripts":{"start":"node server.mjs"},"dependencies":{"ioredis":"5.4.2","mysql2":"3.11.5"}}

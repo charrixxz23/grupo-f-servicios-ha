@@ -1,0 +1,6 @@
+.env
+**/.env
+results/raw/*
+evidence/bundles/*
+*.log
+!.gitkeep
