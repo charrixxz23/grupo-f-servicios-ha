@@ -1,28 +1,28 @@
-# Servicios en producción con alta disponibilidad
+# Servicios en producción con alta disponibilidad (HA)
 
-Proyecto semestral de Sistemas Operativos (UTP), Grupo F. El repositorio contiene el código del laboratorio, scripts de automatización y auditoría, documentación, informe PDF y presentación.
+Proyecto semestral de **Sistemas Operativos (0689)** — Universidad Tecnológica de Panamá (UTP), Grupo 1SF134 · **Grupo F**.  
+El repositorio contiene el código del laboratorio, los scripts reproducibles de despliegue, carga, failover y auditoría del kernel, la documentación técnica, el informe final (PDF y DOCX) y la presentación.
 
 ## Arquitectura
 
-- Nginx como balanceador de la API Node.js y una capa Nginx separada para contenido estático.
-- Escalado horizontal de una a tres réplicas de API.
-- Redis con tres nodos y Sentinel para elección del primario.
-- MySQL InnoDB Cluster de tres miembros con Group Replication.
-- Auditorías de procesos e hilos, cgroups v2, memoria/OOM y entrada/salida de disco.
-- Volúmenes Docker nombrados para persistencia.
+- **Balanceador (Nginx):** enruta el tráfico HTTP (`127.0.0.1:8082`) hacia las réplicas activas de la API.
+- **API (Node.js):** escalable horizontalmente de 1 a 3 réplicas con descubrimiento dinámico de primarios.
+- **Assets estáticos (Nginx):** servidor separado (`127.0.0.1:8081`) respaldado por el *page cache* del kernel.
+- **Caché HA (Redis + Sentinel):** 1 primario, 2 réplicas y 3 nodos Sentinel (quórum = 2) con promoción automática.
+- **Base de datos HA (MySQL 8.4):** 3 miembros en **InnoDB Group Replication** (*single-primary*).
+- **Control del sistema operativo:** límites por servicio con **cgroups v2** (`cpu.max`, `memory.max`, `pids.max`), protección relativa `oom_score_adj` y 6 volúmenes Docker persistentes nombrados.
 
-El despliegue corre en un solo equipo virtualizado (WSL2/Docker Desktop); por eso, la replicación mejora la recuperación de servicios, pero no elimina el punto único de falla del host.
+> El despliegue corre en un solo equipo virtualizado (WSL2/Docker Desktop o VM Linux); por ello la replicación demuestra *failover* lógico entre servicios, pero no elimina el punto único de falla físico del host.
 
 ## Requisitos
 
-- Windows 11, WSL2 Ubuntu y Docker Desktop con contenedores Linux.
-- Docker Compose v2, `curl` y `openssl` en Ubuntu.
-- `sysstat` (`iostat`, `pidstat`) para las mediciones de E/S.
-- Cgroups v2 habilitados en el daemon Docker.
+- Entorno Linux con **cgroups v2** habilitados (Windows 11 + WSL2 Ubuntu + Docker Desktop, o máquina virtual Ubuntu 24.04 con Docker Engine).
+- Docker Engine y **Docker Compose v2**, `bash`, `curl`, `openssl` y `python3`.
+- Paquete `sysstat` (`iostat`, `pidstat`) y `procps` para auditorías de procesos y E/S.
 
-## Inicio
+## Inicio rápido
 
-Desde Ubuntu en WSL2, clona este repositorio y ejecuta:
+Desde la terminal Linux (WSL2 o VM), clona el repositorio y ejecuta:
 
 ```bash
 cd grupo-f-servicios-ha
@@ -31,26 +31,33 @@ bash scripts/stack_up.sh
 bash scripts/verify_ha.sh
 ```
 
-El primer arranque crea un archivo `.env` local con credenciales aleatorias. No compartas ese archivo. `.env.example` solo contiene valores de ejemplo.
+El primer arranque crea un archivo `.env` local con credenciales aleatorias generadas con `openssl`. No compartas ese archivo (`.env` está excluido en `.gitignore` y `.env.example` solo contiene valores de referencia).
 
-## Scripts requeridos y operación
+## Scripts principales y operación
 
-```bash
-bash scripts/stack_up.sh
-bash scripts/cache_up.sh
-bash scripts/db_up.sh
-bash scripts/load.sh 1 3 30s 25
-bash scripts/falla.sh app    # También admite redis y mysql
-bash scripts/sondeo.sh 60 0.2
-```
+| Script | Función |
+|---|---|
+| `scripts/preflight.sh` | Comprueba Docker, Compose, cgroups v2, memoria y disco antes del despliegue. |
+| `scripts/stack_up.sh` | Genera `.env` (si no existe), construye y levanta el stack completo. |
+| `scripts/cache_up.sh` | Levanta y valida Redis + Sentinel (quórum = 2 y 2 réplicas conectadas). |
+| `scripts/db_up.sh` | Inicializa y valida MySQL 8.4 Group Replication (3 miembros `ONLINE`, 1 `PRIMARY`). |
+| `scripts/verify_ha.sh` | Verifica salud HTTP, assets, quórum Sentinel, 3 nodos MySQL y escritura/lectura real. |
+| `scripts/scale.sh 1\|2\|3` | Escala la API horizontalmente sin detener MySQL ni Redis y comprueba balanceo. |
+| `scripts/load.sh [n] [reps] [dur] [conc]` | Ejecuta pruebas de carga repetidas y calcula promedios con `scripts/summarize.py`. |
+| `scripts/falla.sh app\|redis\|mysql` | Inyecta fallos controlados bajo sondeo continuo y mide MTTR, errores e integridad. |
+| `scripts/sondeo.sh [seg] [intervalo]` | Sondea disponibilidad HTTP continua y registra latencia y errores en CSV. |
+| `scripts/process_audit.sh [servicio]` | Audita procesos e hilos reales (Módulo I: `/proc/1/task`, `ps -L`, `top -H`). |
+| `scripts/kernel_audit.sh [servicio]` | Audita cgroups v2 y `oom_score_adj` (Módulo II: `cpu.max`, `memory.max`, `pids.max`). |
+| `scripts/memory_pressure.sh high\|oom` | Ejecuta las pruebas aisladas de presión de memoria y OOM Killer en contenedor desechable. |
 
-Los scripts auxiliares en `scripts/` preparan el entorno, escalan servicios, recopilan evidencias y auditan procesos, cgroups, memoria y E/S. Los datos generados por nuevas pruebas quedan en `results/`; los registros crudos locales no se publican.
+*(Los módulos auxiliares `scripts/common.sh` y `scripts/summarize.py` son dependencias internas utilizadas por los scripts anteriores).*
 
-## Entregables
+## Entregables y documentación
 
 - [Informe del proyecto (PDF)](docs/Grupo_F_Proyecto_Semestral_HA.pdf)
+- [Informe del proyecto (DOCX)](docs/Grupo_F_Proyecto_Semestral_HA.docx)
 - [Presentación (PPTX)](docs/Grupo_F_Presentacion_HA.pptx)
 - [Guía de evidencias](EVIDENCIAS.md)
-- Documentación adicional en `docs/`.
+- Documentación técnica adicional en `docs/` (`ARQUITECTURA.md`, `KERNEL.md`, `EXPERIMENTOS.md`, `FAILOVER.md`, `RESULTADOS.md`).
 
-El informe de publicación omite los números de cédula de los integrantes. El archivo `.env` real, registros crudos y paquetes ZIP locales se excluyen del repositorio.
+> **Nota de privacidad:** En la versión pública del informe incluida en este repositorio se omitieron los números de cédula de los integrantes por privacidad, dado que el repositorio es de acceso público. Asimismo, el archivo `.env` real, los registros crudos (`results/raw/`) y las bitácoras locales (`*.log`) se excluyen del control de versiones.

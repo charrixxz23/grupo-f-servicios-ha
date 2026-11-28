@@ -18,7 +18,7 @@ Resultados observados en WSL2 Ubuntu 6.18.58.1 con Docker Desktop Engine 29.9.2,
 | E/S y memoria del host | Validado con límite | `df`, `free`, `/proc/meminfo`, `iostat` y `pidstat` disponibles. Las métricas son de WSL/VM y no atribuyen E/S de forma inequívoca a cada volumen Docker. |
 | Presión `memory.high` | Parcialmente validado | Servicio siguió respondiendo; p99 de carga 210 ms, pero el cgroup mostró `memory.high=max`, PSI 0 y `memory.events high=0`. El archivo cgroup es de solo lectura dentro del contenedor, aunque Docker declara reserva de 48 MiB. No se afirma que se haya provocado throttling `memory.high`. |
 | OOM aislado | Validado | Solo contenedor desechable de 96 MiB; `oom_kill` aumentó, Docker reportó `OOMKilled=true`, y `dmesg -T` mostró `CONSTRAINT_MEMCG` y procesos `stress-ng-vm` terminados. La API y MySQL quedaron intactos. |
-| Capturas de pantalla | Pendiente del usuario | La guía secuencial está en `docs/EVIDENCIAS.md`; las capturas deben tomarse desde la terminal real y no se generan artificialmente. |
+| Capturas de pantalla | Validado | La guía secuencial está en `EVIDENCIAS.md`; todas las capturas reales del laboratorio quedaron integradas en el informe final. |
 
 ## Escalabilidad
 
